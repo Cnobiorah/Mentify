@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mentorship.AI — Simple Matcher (Mentee → Mentor) + Auth + Requests + Goal Tracker</title>
+  <style>
+    :root{--bg:#0b0f12;--card:#12181d;--ink:#e8f1f8;--muted:#9ab0c1;--accent:#22c55e;--soft:#1a232b;--warn:#fbbf24}
+    *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,"Helvetica Neue",Arial}
+    body{margin:0;background:linear-gradient(180deg,#0b0f12,#0c1319);color:var(--ink)}
+    .wrap{max-width:1100px;margin:32px auto;padding:20px}
+    .hero{display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .badge{display:inline-flex;gap:8px;align-items:center;background:var(--soft);border:1px solid #24313a;color:#d9fbe7;padding:6px 10px;border-radius:999px;font-size:12px}
+    h1{margin:8px 0 4px;font-weight:800;font-size:28px}
+    p.lead{color:var(--muted);margin:0 0 16px}
+    .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid #202a32;border-radius:16px;padding:16px;box-shadow:0 10px 28px rgba(0,0,0,.25)}
+    label{display:block;font-size:13px;color:#c6d6e2;margin:10px 0 6px}
+    input,select,textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #28343e;background:#0e151b;color:var(--ink)}
+    textarea{min-height:84px;resize:vertical}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row>*{flex:1}
+    .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#052e14;border:none;padding:12px 16px;border-radius:12px;font-weight:700;cursor:pointer}
+    .btn.alt{background:#0f171d;color:#d3e6f2;border:1px solid #2b3843}
+    .btn.warn{background:var(--warn);color:#1f1400}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .chip{padding:6px 10px;border-radius:999px;border:1px solid #2a3742;background:#0f171d;color:#cfe7d9;font-size:12px;cursor:pointer}
+    .chip.active{background:#11261a;border-color:#1f6d3e}
+    .pill{display:inline-block;background:#0f171d;border:1px solid #28433a;color:#b7f2cd;padding:4px 8px;border-radius:999px;font-size:12px;margin-right:6px}
+    .score{font-weight:800;color:#9ff0b9}
+    small.help{color:#92a8ba}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .section-title{margin:0 0 8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <span class="badge">MVP • Client‑side prototype</span>
+        <h1>Mentorship.AI — Mentorship Matcher + Auth + Requests + Goal Tracker</h1>
+        <p class="lead">Register/login, select role (Mentor/Mentee), collect profile, suggest mentors, request mentorship, and track goals. <strong class="pill">Demo only — no real security</strong></p>
+      </div>
+      <div class="card" style="min-width:280px;max-width:360px">
+        <h3 class="section-title">Account</h3>
+        <div class="row">
+          <select id="authMode">
+            <option>Login</option>
+            <option>Register</option>
+          </select>
+          <select id="authRole">
+            <option>Mentee</option>
+            <option>Mentor</option>
+            <option>Admin</option>
+          </select>
+        </div>
+        <label>Name</label>
+        <input id="authName" placeholder="Your name" />
+        <label>Email</label>
+        <input id="authEmail" placeholder="you@example.com" />
+        <label>Password <small class="help">Demo: stored locally; do not use a real password</small></label>
+        <input id="authPassword" placeholder="••••••••" type="password" />
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="btnAuthGo">Continue</button>
+          <button class="btn alt" id="btnLogout">Logout</button>
+        </div>
+        <p id="authStatus" class="mono" style="margin-top:8px;color:#9ab0c1"></p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT: MENTEE or MENTOR FORMS -->
+      <div class="card">
+        <h2>1) Profile</h2>
+        <p class="lead" id="roleHint">Fill in your profile. If you are a Mentor, you can add your meeting link.</p>
+        <div id="menteeFields">
+          <label>Location / Timezone</label>
+          <select id="menteeTZ">
+            <option value="Europe/London">Europe/London (UK)</option>
+            <option value="Europe/Paris">Europe/Paris</option>
+            <option value="Africa/Lagos">Africa/Lagos</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="Asia/Dubai">Asia/Dubai</option>
+          </select>
+
+          <label>Interests / Skills you want to develop</label>
+          <div id="interestChips" class="chips"></div>
+          <small class="help">Click to toggle. Add more below if needed.</small>
+          <input id="customInterest" placeholder="Type a custom interest and press Enter" />
+
+          <label>Goals (free text)</label>
+          <textarea id="menteeGoals" placeholder="e.g., transition to sustainability consulting; improve energy modelling; get portfolio feedback"></textarea>
+
+          <label>Availability</label>
+          <select id="menteeAvail">
+            <option>Weeknights</option>
+            <option>Weekends</option>
+            <option>Weekdays</option>
+            <option>Early mornings</option>
+            <option>Evenings</option>
+          </select>
+
+          <label>Mentorship Type</label>
+          <select id="menteeType">
+            <option>Career</option>
+            <option>Academic</option>
+            <option>Technical</option>
+            <option>Leadership</option>
+          </select>
+        </div>
+
+        <div id="mentorFields" style="display:none">
+          <label>Timezone</label>
+          <select id="mentorTZ">
+            <option value="Europe/London">Europe/London (UK)</option>
+            <option value="Europe/Paris">Europe/Paris</option>
+            <option value="Africa/Lagos">Africa/Lagos</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="Asia/Dubai">Asia/Dubai</option>
+          </select>
+
+          <label>Availability (use ; to separate multiple)</label>
+          <input id="mentorAvail" placeholder="Weeknights;Weekends" />
+
+          <label>Mentorship Types (use ; to separate multiple)</label>
+          <input id="mentorTypes" placeholder="Career;Technical" />
+
+          <label>Skills (use ; to separate multiple)</label>
+          <input id="mentorSkills" placeholder="LEED;BREEAM;Energy Modelling" />
+
+          <label>Topics (use ; to separate multiple)</label>
+          <input id="mentorTopics" placeholder="Green Buildings;Digital Twins" />
+
+          <label>Bio</label>
+          <textarea id="mentorBio" placeholder="Short mentor bio"></textarea>
+
+          <label>Meeting/Chat Link (optional)</label>
+          <input id="mentorMeeting" placeholder="https://meet.google.com/… or https://zoom.us/j/… or Slack/WhatsApp link" />
+
+          <label>LinkedIn Profile (optional)</label>
+          <input id="mentorLinkedIn" placeholder="https://www.linkedin.com/in/your-handle" />
+
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="btnSaveMentor">Save Mentor Profile</button>
+          </div>
+          <small class="help">Saving adds/updates your entry in the in-browser mentor list (for demo). In production, save to a database.</small>
+        </div>
+      </div>
+
+      <!-- RIGHT: MATCH RESULTS + GOALS -->
+      <div class="card">
+        <h2>2) Suggested Mentors</h2>
+        <div id="results" class="results"></div>
+        <div id="menteeRequestsCard" style="margin-top:12px"></div>
+        <hr style="border-color:#24313a;margin:12px 0">
+        <h2>3) Goal Tracker / Notes</h2>
+        <div id="goals"></div>
+      </div>
+    </div>
+
+    <!-- ADMIN / DATA SOURCE -->
+    <div class="card" style="margin-top:16px">
+      <h2>Admin • Mentor Directory (live via Google Sheets CSV)</h2>
+      <p class="lead">Paste a <em>Published to the web</em> Google Sheets CSV link, then load. Columns: <code class="mono">Name, Email, Timezone, Availability, Types, Skills, Topics, Bio, MeetingLink, LinkedIn</code> (last two optional). Multiple values separated by semicolons (;).</p>
+      <div class="row">
+        <input id="csvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/XXXX/pub?output=csv" />
+        <button class="btn" id="btnLoadCSV">Load from Google Sheets</button>
+        <button class="btn alt" id="btnSuggest">Suggest Mentors</button>
+        <button class="btn warn" id="btnReset">Reset</button>
+      </div>
+      <small class="help">Google Sheets → File → Share → Publish to web → Format: CSV → copy link.</small>
+      <div id="mentorList" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" id="mentorInbox" style="margin-top:16px; display:none">
+      <h2>Mentor Inbox • Requests</h2>
+      <div id="mentorRequests"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Test Harness</h2>
+      <p class="lead">Quick checks to validate the parser, matcher, auth, goals, and requests. Open DevTools for console output.</p>
+      <div class="row">
+        <button class="btn" id="btnRunTests">Run Tests</button>
+      </div>
+      <div id="testResults" class="mono" style="margin-top:10px; white-space:pre-wrap"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px" id="qaCard">
+      <h2>Admin • QA Checklist Dashboard</h2>
+      <p class="lead">Run an end-to-end demo check. Results below will turn green when each step passes.</p>
+      <div class="row">
+        <button class="btn" id="btnRunChecklist">Run Checklist</button>
+        <button class="btn alt" id="btnExportChecklist">Export Results (JSON)</button>
+      </div>
+      <div id="qaList" class="mono" style="margin-top:10px">
+        <ul id="qaItems" style="list-style:none; padding-left:0">
+          <li id="qa-auth">🔲 Auth: Register → Login persists
+            <small class="help" id="qa-auth-msg"></small>
+          </li>
+          <li id="qa-mentor-save">🔲 Mentor Save: Form → Directory updated
+            <small class="help" id="qa-mentor-save-msg"></small>
+          </li>
+          <li id="qa-matching">🔲 Matching: Ranked list non-empty & sorted
+            <small class="help" id="qa-matching-msg"></small>
+          </li>
+          <li id="qa-goals">🔲 Goals CRUD: Add → Update → Delete
+            <small class="help" id="qa-goals-msg"></small>
+          </li>
+          <li id="qa-csv">🔲 CSV Loader: Parse header + rows (mock)
+            <small class="help" id="qa-csv-msg"></small>
+          </li>
+          <li id="qa-linkedin">🔲 LinkedIn: Renders LinkedIn pill in UI
+            <small class="help" id="qa-linkedin-msg"></small>
+          </li>
+          <li id="qa-storage">🔲 Persistence: localStorage keys exist
+            <small class="help" id="qa-storage-msg"></small>
+          </li>
+          <li id="qa-ui">🔲 UI Presence: Core elements found
+            <small class="help" id="qa-ui-msg"></small>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="lead" style="margin-top:16px">Privacy note: this demo runs entirely in your browser. <strong>Do not use real passwords</strong>. For production, add real auth, consent, and secure storage.</p>
+  </div>
+
+<script>
+// Wrap entire script so handlers bind after DOM is ready
+window.addEventListener('DOMContentLoaded', () => {
+// ======= Demo mentor dataset (overridden when loading from Google Sheets) =======
+let mentors = [
+  { id:1, name:"Dr. Aisha Olu", email:"aisha@mentors.org", tz:"Africa/Lagos", availability:["Weeknights","Weekends"], types:["Career","Technical"], skills:["Sustainability Consulting","Energy Modelling","IESVE","Revit","Green Jobs"], topics:["Green Skills","Renewables","Digital Twins"], bio:"Senior sustainability consultant; focuses on energy modelling and early-stage design decisions.", meetingLink:"", linkedin:"" },
+  { id:2, name:"Ben Carter", email:"ben@mentors.org", tz:"Europe/London", availability:["Weekdays","Evenings"], types:["Career","Leadership"], skills:["Project Management","BREEAM","LEED","Stakeholder Engagement"], topics:["Green Buildings","Certification","Policy"], bio:"Programme lead on BREEAM/LEED projects; great for career transitions into sustainability.", meetingLink:"", linkedin:"" },
+  { id:3, name:"Chioma Eke", email:"chioma@mentors.org", tz:"Europe/Paris", availability:["Weekends","Evenings"], types:["Technical","Academic"], skills:["Python","Data Analysis","Life Cycle Assessment","EnergyPlus"], topics:["LCA","Data","Circular Economy"], bio:"Data & LCA specialist; teaches practical Python workflows for building performance.", meetingLink:"", linkedin:"" },
+  { id:4, name:"David Zhang", email:"david@mentors.org", tz:"America/New_York", availability:["Early mornings","Weekdays"], types:["Career","Technical"], skills:["Digital Twins","IoT","Building Automation","BACnet"], topics:["Smart Buildings","Controls","Analytics"], bio:"Smart buildings engineer; mentors on digital twins and controls integration.", meetingLink:"", linkedin:"" },
+  { id:5, name:"Emma Wright", email:"emma@mentors.org", tz:"Europe/London", availability:["Weeknights","Weekends"], types:["Academic","Career"], skills:["WELL","Human-Centred Design","Portfolio Review"], topics:["Health & Wellbeing","UX","Design Thinking"], bio:"Architect & WELL advocate; supports mentees with portfolio/storytelling.", meetingLink:"", linkedin:"" }
+];
+
+// ======= Interest chips =======
+const DEFAULT_INTERESTS = ["Sustainability Consulting","Energy Modelling","Digital Twins","Green Jobs","BREEAM","LEED","WELL","LCA","Data Analysis","Smart Buildings"];
+const interestsContainer = document.getElementById('interestChips');
+const selectedInterests = new Set();
+function renderInterests(){
+  interestsContainer.innerHTML = '';
+  DEFAULT_INTERESTS.forEach(tag=>{
+    const el = document.createElement('button'); el.type='button'; el.className='chip'; el.textContent=tag;
+    el.onclick=()=>{ el.classList.toggle('active'); if(selectedInterests.has(tag)) selectedInterests.delete(tag); else selectedInterests.add(tag); };
+    interestsContainer.appendChild(el);
+  });
+}
+renderInterests();
+
+document.getElementById('customInterest').addEventListener('keydown', e=>{
+  if(e.key==='Enter' && e.target.value.trim()){
+    const tag = e.target.value.trim(); DEFAULT_INTERESTS.push(tag); selectedInterests.add(tag); renderInterests();
+    [...interestsContainer.children].forEach(ch=>{ if(ch.textContent===tag) ch.classList.add('active'); }); e.target.value='';
+  }
+});
+
+// ======= Auth (demo only: localStorage) =======
+function getUsers(){ try{ return JSON.parse(localStorage.getItem('users')||'[]'); }catch{ return []; } }
+function setUsers(list){ localStorage.setItem('users', JSON.stringify(list)); }
+function setSession(user){ localStorage.setItem('session', JSON.stringify(user)); renderAuthStatus(); }
+function getSession(){ try{ return JSON.parse(localStorage.getItem('session')||'null'); }catch{ return null; } }
+
+function renderAuthStatus(){
+  const s = getSession(); const el = document.getElementById('authStatus');
+  if(s){ el.textContent = `Logged in as ${s.name} <${s.email}> [${s.role}]`; document.getElementById('roleHint').textContent = s.role==='Mentor' ? 'Mentor: complete your profile and save to appear in the directory.' : 'Mentee: fill your profile then click Suggest Mentors.';
+    document.getElementById('mentorFields').style.display = (s.role==='Mentor')? 'block':'none';
+    document.getElementById('menteeFields').style.display = (s.role!=='Mentor')? 'block':'none';
+    // Show mentor inbox only for mentors
+    const inbox = document.getElementById('mentorInbox'); if(inbox){ inbox.style.display = (s.role==='Mentor')? 'block':'none'; }
+    renderMenteeRequests(); renderMentorInbox();
+  } else { el.textContent='Not logged in'; const inbox = document.getElementById('mentorInbox'); if(inbox){ inbox.style.display='none'; }
+  }
+}
+
+function registerUser(name,email,role,password){
+  const users = getUsers(); if(users.find(u=>u.email===email)){ throw new Error('User already exists'); }
+  users.push({name,email,role,password}); setUsers(users); setSession({name,email,role});
+}
+function loginUser(email,password){
+  const u = getUsers().find(u=> u.email===email && u.password===password); if(!u) throw new Error('Invalid credentials'); setSession({name:u.name,email:u.email,role:u.role});
+}
+
+// Auth handlers (guarded by null checks)
+const btnAuthGo = document.getElementById('btnAuthGo');
+if(btnAuthGo){
+  btnAuthGo.onclick = ()=>{
+    const mode = document.getElementById('authMode').value; const role = document.getElementById('authRole').value;
+    const name = document.getElementById('authName').value.trim(); const email = document.getElementById('authEmail').value.trim(); const pw = document.getElementById('authPassword').value;
+    try{
+      if(mode==='Register'){ if(!name||!email||!pw) throw new Error('Fill name, email, password'); registerUser(name,email,role,pw); alert('Registered and logged in.'); }
+      else { if(!email||!pw) throw new Error('Fill email and password'); loginUser(email,pw); alert('Logged in.'); }
+      renderAuthStatus();
+    }catch(err){ alert('Auth error: '+err.message); }
+  };
+}
+const btnLogout = document.getElementById('btnLogout');
+if(btnLogout){ btnLogout.onclick = ()=>{ localStorage.removeItem('session'); renderAuthStatus(); }; }
+
+// ======= Matching / scoring =======
+function tokenize(text){ return (text||'').toLowerCase().split(/[^a-z0-9+]+/).filter(Boolean); }
+function overlapScore(arrA, arrB){ const setB = new Set((arrB||[]).map(s=>String(s).toLowerCase())); let count = 0; (arrA||[]).forEach(a=>{ if(setB.has(String(a).toLowerCase())) count++; }); return count; }
+function availabilityOverlap(a, b){ return overlapScore(a,b) > 0 ? 1 : 0; }
+function tzAffinity(tzA, tzB){ return tzA===tzB ? 1 : 0; }
+function matchMentors(mentee){
+  const goalTokens = tokenize(mentee.goals);
+  return mentors.map(m=>{
+    const scoreSkills = overlapScore(mentee.interests, m.skills) * 3;
+    const scoreTopics = overlapScore(mentee.interests, m.topics) * 2;
+    const scoreType = m.types.includes(mentee.type) ? 2 : 0;
+    const scoreAvail = availabilityOverlap([mentee.availability], m.availability) * 2;
+    const scoreTZ = tzAffinity(mentee.tz, m.tz) * 1;
+    const scoreGoals = goalTokens.filter(t=> tokenize([...m.skills, ...m.topics].join(' ')).includes(t)).length;
+    const total = scoreSkills + scoreTopics + scoreType + scoreAvail + scoreTZ + scoreGoals;
+    return { mentor:m, score: total, breakdown:{scoreSkills, scoreTopics, scoreType, scoreAvail, scoreTZ, scoreGoals} };
+  }).sort((a,b)=> b.score - a.score);
+}
+
+// ======= UI handlers =======
+function readMentee(){
+  const s = getSession();
+  return {
+    name: s?.name || '', email: s?.email || '', tz: document.getElementById('menteeTZ').value,
+    interests: [...selectedInterests], goals: document.getElementById('menteeGoals').value,
+    availability: document.getElementById('menteeAvail').value, type: document.getElementById('menteeType').value,
+  };
+}
+
+function renderResults(matches){
+  const host = document.getElementById('results'); host.innerHTML = '';
+  if(!matches.length){ host.innerHTML = '<p class="lead">No matches yet. Try widening interests or availability.</p>'; return; }
+  matches.slice(0,5).forEach(({mentor, score, breakdown})=>{
+    const box = document.createElement('div'); box.className='card';
+    const meet = mentor.meetingLink ? `<a class="pill" href="${mentor.meetingLink}" target="_blank" rel="noopener">Meeting</a>` : '';
+    const li = mentor.linkedin ? `<a class="pill" href="${mentor.linkedin}" target="_blank" rel="noopener">LinkedIn</a>` : '';
+    box.innerHTML = `
+      <h3>${mentor.name} <span class="score">• Score ${score}</span></h3>
+      <p>${mentor.bio}</p>
+      <p>
+        <span class="pill">${mentor.tz}</span>
+        <span class="pill">${mentor.availability.join(' / ')}</span>
+        <span class="pill">${mentor.types.join(' / ')}</span>
+        ${meet} ${li}
+      </p>
+      <p><strong>Skills:</strong> ${mentor.skills.join(', ')}</p>
+      <p><strong>Topics:</strong> ${mentor.topics.join(', ')}</p>
+      <div class="row">
+        <a class="btn alt" href="mailto:${mentor.email}?subject=Mentorship%20Request&body=Hi%20${encodeURIComponent(mentor.name)},%0D%0AI'd%20love%20to%20connect%20for%20mentorship...">Email mentor</a>
+        <button class="btn" data-action="add-goal" data-email="${mentor.email}">Add to Goals</button>
+        <button class="btn" data-action="request" data-email="${mentor.email}">Request Mentorship</button>
+      </div>
+    `;
+    host.appendChild(box);
+  });
+
+  // Wire buttons
+  host.querySelectorAll('button[data-action="add-goal"]').forEach(btn=>{
+    btn.onclick = ()=> addGoalEntry(btn.getAttribute('data-email'));
+  });
+  host.querySelectorAll('button[data-action="request"]').forEach(btn=>{
+    btn.onclick = ()=> createMentorshipRequest(btn.getAttribute('data-email'));
+  });
+}
+
+function renderMentorDirectory(){
+  const wrap = document.getElementById('mentorList'); wrap.innerHTML='';
+  mentors.forEach(m=>{
+    const el = document.createElement('div'); el.className='card';
+    const meet = m.meetingLink ? `<a class="pill" href="${m.meetingLink}" target="_blank" rel="noopener">Meeting</a>` : '';
+    const li = m.linkedin ? `<a class="pill" href="${m.linkedin}" target="_blank" rel="noopener">LinkedIn</a>` : '';
+    el.innerHTML = `
+      <strong>${m.name}</strong> — ${m.bio}<br>
+      <small>${m.email} • ${m.tz} • ${m.availability.join(' / ')} • ${m.types.join(' / ')} ${meet} ${li}</small><br>
+      <small><em>Skills:</em> ${m.skills.join(', ')}</small><br>
+      <small><em>Topics:</em> ${m.topics.join(', ')}</small>
+    `;
+    wrap.appendChild(el);
+  });
+}
+renderMentorDirectory();
+
+// ======= Requests / Pairing =======
+function getRequests(){ try{ return JSON.parse(localStorage.getItem('requests')||'[]'); }catch{ return []; } }
+function setRequests(list){ localStorage.setItem('requests', JSON.stringify(list)); renderMenteeRequests(); renderMentorInbox(); }
+function getPairs(){ try{ return JSON.parse(localStorage.getItem('pairs')||'[]'); }catch{ return []; } }
+function setPairs(list){ localStorage.setItem('pairs', JSON.stringify(list)); renderMenteeRequests(); renderMentorInbox(); }
+
+async function createMentorshipRequest(mentorEmail){
+  const s = getSession(); if(!s || s.role!=='Mentee'){ alert('Login as Mentee to request.'); return; }
+  const reqs = getRequests();
+  if(reqs.some(r=> r.menteeEmail===s.email && r.mentorEmail===mentorEmail && r.status==='pending')){ alert('You already have a pending request to this mentor.'); return; }
+  const rec = { id: Math.random().toString(36).slice(2), menteeEmail: s.email, mentorEmail, status:'pending', createdAt: Date.now() };
+  reqs.push(rec); setRequests(reqs); alert('Request sent. Status: Pending');
+}
+
+function updateRequest(id, patch){ setRequests(getRequests().map(r=> r.id===id ? {...r, ...patch}: r)); }
+
+async function acceptRequest(id){
+  const s = getSession(); if(!s || s.role!=='Mentor'){ alert('Login as Mentor to accept.'); return; }
+  const req = getRequests().find(r=> r.id===id && r.mentorEmail===s.email); if(!req) return;
+  updateRequest(id, {status:'accepted', decidedAt: Date.now()});
+  const pairs = getPairs(); if(!pairs.some(p=> p.mentorEmail===req.mentorEmail && p.menteeEmail===req.menteeEmail)){
+    pairs.push({mentorEmail:req.mentorEmail, menteeEmail:req.menteeEmail, startedAt: new Date().toISOString().slice(0,10)});
+    setPairs(pairs);
+  } else { setPairs(pairs); }
+  alert('Accepted. Pair activated.');
+}
+
+async function declineRequest(id){
+  const s = getSession(); if(!s || s.role!=='Mentor'){ alert('Login as Mentor to decline.'); return; }
+  const req = getRequests().find(r=> r.id===id && r.mentorEmail===s.email); if(!req) return;
+  updateRequest(id, {status:'declined', decidedAt: Date.now()}); alert('Declined request.');
+}
+
+function renderMenteeRequests(){
+  const s = getSession(); const host = document.getElementById('menteeRequestsCard'); if(!host) return; host.innerHTML='';
+  if(!s || s.role!=='Mentee') return;
+  const reqs = getRequests().filter(r=> r.menteeEmail===s.email);
+  const pairs = getPairs().filter(p=> p.menteeEmail===s.email);
+  const active = pairs.map(p=> mentors.find(m=> m.email===p.mentorEmail)?.name || p.mentorEmail);
+  const box = document.createElement('div'); box.className='card';
+  box.innerHTML = `<h3>My Requests</h3>
+    ${(reqs.length? '':'<p class="lead">No requests yet. Use “Request Mentorship”.</p>')}
+    ${reqs.map(r=>{
+      const mentor = mentors.find(m=> m.email===r.mentorEmail);
+      return `<p><strong>${mentor? mentor.name: r.mentorEmail}</strong> — <span class="pill">${r.status}</span></p>`;
+    }).join('')}
+    <hr style="border-color:#24313a">
+    <h3>Active Mentor</h3>
+    ${(active.length? active.map(n=> `<p>• ${n}</p>`).join('') : '<p class="lead">None yet.</p>')}
+  `;
+  host.appendChild(box);
+}
+
+async function renderMentorInbox(){
+  const s = getSession(); const host = document.getElementById('mentorRequests'); if(!host) return; host.innerHTML='';
+  if(!s || s.role!=='Mentor') return;
+  const mine = getRequests().filter(r=> r.mentorEmail===s.email);
+  if(!mine.length){ host.innerHTML = '<p class="lead">No requests yet.</p>'; return; }
+  mine.forEach(r=>{
+    const mentee = getUsers().find(u=> u.email===r.menteeEmail) || {name:r.menteeEmail};
+    const row = document.createElement('div'); row.className='card';
+    row.innerHTML = `<strong>${mentee.name}</strong> <small class="help">${r.menteeEmail}</small> — <span class="pill">${r.status}</span>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" data-acc="${r.id}">Accept</button>
+        <button class="btn alt" data-dec="${r.id}">Decline</button>
+        <a class="btn alt" href="mailto:${r.menteeEmail}?subject=Re:%20Mentorship%20Request&body=Hi%20${encodeURIComponent(mentee.name)}," target="_blank">Email</a>
+      </div>`;
+    host.appendChild(row);
+  });
+  // Bind actions
+  host.querySelectorAll('button[data-acc]').forEach(b=> b.onclick=()=> acceptRequest(b.getAttribute('data-acc')));
+  host.querySelectorAll('button[data-dec]').forEach(b=> b.onclick=()=> declineRequest(b.getAttribute('data-dec')));
+}
+
+// ======= Goal Tracker =======
+function getGoals(){ try{ return JSON.parse(localStorage.getItem('goals')||'[]'); }catch{ return []; } }
+function setGoals(list){ localStorage.setItem('goals', JSON.stringify(list)); renderGoals(); }
+function addGoalEntry(mentorEmail){
+  const s = getSession(); if(!s){ alert('Login first.'); return; }
+  const now = new Date().toISOString().slice(0,10);
+  const entry = { id: Math.random().toString(36).slice(2), menteeEmail: s.email, mentorEmail, title:"New Goal", description:"", status:"Not Started", progress:0, notes:"", startDate: now, targetDate: now };
+  const g = getGoals(); g.push(entry); setGoals(g);
+}
+function updateGoal(id, patch){ const g = getGoals().map(x=> x.id===id? {...x, ...patch}: x); setGoals(g); }
+function deleteGoal(id){ setGoals(getGoals().filter(x=> x.id!==id)); }
+
+function renderGoals(){
+  const s = getSession(); const host = document.getElementById('goals'); host.innerHTML='';
+  const myGoals = getGoals().filter(g=> !s || g.menteeEmail===s.email);
+  if(!myGoals.length){ host.innerHTML = '<p class="lead">No goals yet. Use “Add to Goals”.</p>'; return; }
+  myGoals.forEach(g=>{
+    const box = document.createElement('div'); box.className='card';
+    const mentor = mentors.find(m=> m.email===g.mentorEmail);
+    box.innerHTML = `
+      <div class="row"><input value="${g.title}" data-k="title" /><select data-k="status"><option>Not Started</option><option>In Progress</option><option>Blocked</option><option>Completed</option></select></div>
+      <small class="help">${mentor? mentor.name: g.mentorEmail} • Start ${g.startDate} → Target <input type="date" value="${g.targetDate}" data-k="targetDate" style="width:auto"></small>
+      <label>Notes</label>
+      <textarea data-k="notes">${g.notes}</textarea>
+      <label>Progress %</label>
+      <input type="number" min="0" max="100" value="${g.progress}" data-k="progress" />
+      <div class="row" style="margin-top:8px">
+        <button class="btn" data-act="save" data-id="${g.id}">Save</button>
+        <button class="btn alt" data-act="delete" data-id="${g.id}">Delete</button>
+      </div>
+    `;
+    // Set current status
+    setTimeout(()=>{ const sel = box.querySelector('select[data-k="status"]'); if(sel) sel.value = g.status; }, 0);
+    host.appendChild(box);
+  });
+
+  // Wire buttons and inputs
+  host.querySelectorAll('button[data-act="save"]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const box = btn.closest('.card'); const id = btn.getAttribute('data-id');
+      const patch = {}; box.querySelectorAll('[data-k]').forEach(el=>{ const k = el.getAttribute('data-k'); patch[k] = el.type==='number'? Number(el.value): el.value; });
+      updateGoal(id, patch); alert('Saved goal.');
+    };
+  });
+  host.querySelectorAll('button[data-act="delete"]').forEach(btn=>{ btn.onclick = ()=> deleteGoal(btn.getAttribute('data-id')); });
+}
+renderGoals();
+
+// ======= Google Sheets CSV loader =======
+function parseCSV(text){
+  const rows = []; let cur = '', row = [], inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i], n=text[i+1];
+    if(c=='"'){ if(inQuotes && n=='"'){ cur+='"'; i++; } else { inQuotes=!inQuotes; } }
+    else if(c===',' && !inQuotes){ row.push(cur); cur=''; }
+    else if((c=='\n'||c=='\r') && !inQuotes){ if(cur!==''||row.length){ row.push(cur); rows.push(row); row=[]; cur=''; } }
+    else { cur+=c; }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=> r.some(cell=> String(cell).trim()!==''));
+}
+
+function headerIndexMap(header){ return Object.fromEntries(header.map((h,i)=> [h.trim(), i])); }
+function getCell(row, idx, keys){ for(const k of keys){ if(k in idx){ return row[idx[k]] || ''; } } return ''; }
+function toMentorObj(row, idx){
+  return {
+    id: Math.random().toString(36).slice(2),
+    name: getCell(row, idx, ['name','Name']),
+    email: getCell(row, idx, ['email','Email']),
+    tz: getCell(row, idx, ['timezone','Timezone']) || 'Europe/London',
+    availability: toArray(getCell(row, idx, ['availability','Availability'])),
+    types: toArray(getCell(row, idx, ['types','Types'])),
+    skills: toArray(getCell(row, idx, ['skills','Skills'])),
+    topics: toArray(getCell(row, idx, ['topics','Topics'])),
+    bio: getCell(row, idx, ['bio','Bio']),
+    meetingLink: getCell(row, idx, ['MeetingLink','meetinglink','Meeting Link']),
+    linkedin: getCell(row, idx, ['LinkedIn','linkedin','LinkedInURL','Linkedin','Linked In'])
+  };
+}
+
+async function loadMentorsFromCSV(url){
+  const res = await fetch(url); if(!res.ok) throw new Error('Fetch failed: '+res.status);
+  const text = await res.text(); const rows = parseCSV(text); const header = rows[0]; if(!header) throw new Error('Missing header row');
+  const idx = headerIndexMap(header); const parsed = rows.slice(1).map(r=> toMentorObj(r, idx)).filter(m=> m.name && m.email);
+  if(!parsed.length) throw new Error('No mentor rows found. Check headers and data.');
+  mentors = parsed; renderMentorDirectory(); return parsed;
+}
+
+// ======= Utilities =======
+function toArray(s){ return String(s||'').split(/;|\//).map(v=>v.trim()).filter(Boolean); }
+
+// Persist CSV link for convenience & initial auth render
+(() => { const saved = localStorage.getItem('csvUrl'); if(saved){ const el=document.getElementById('csvUrl'); if(el) el.value = saved; } renderAuthStatus(); })();
+
+// ======= Tests =======
+function runTests(){
+  const out=[]; const ok=(name,cond)=>{ out.push(`${cond?'✅':'❌'} ${name}`); if(!cond) console.error('Test failed:', name); };
+  // CSV parsing
+  const csv='Name,Email,Skills\n"Jane, Doe",jane@example.com,"Energy Modelling;LCA"\nJohn,john@example.com,LEED'; const rows=parseCSV(csv);
+  ok('CSV rows', rows.length===3); ok('Quoted comma kept', rows[1][0]==='Jane, Doe');
+  // Header mapping optional MeetingLink + LinkedIn
+  const idx = headerIndexMap(['Name','Email','MeetingLink','LinkedIn']); ok('Header map (MeetingLink)', idx.MeetingLink===2); ok('Header map (LinkedIn)', idx.LinkedIn===3);
+  // Matching sorted
+  const matches=matchMentors({interests:['Energy Modelling'],goals:'learn IESVE',tz:'Europe/London',availability:'Weeknights',type:'Career'});
+  ok('Sorted by score', matches.every((m,i,a)=> i===0 || m.score<=a[i-1].score));
+  // Auth round-trip
+  const usersBefore = getUsers().length; registerUser('Test','test@example.com','Mentee','x'); ok('User registered', getUsers().length===usersBefore+1); loginUser('test@example.com','x'); ok('Login works', !!getSession());
+  // Goals add
+  const before = getGoals().length; addGoalEntry('aisha@mentors.org'); ok('Goal added', getGoals().length===before+1);
+  // DOM presence tests
+  ok('DOM: btnSuggest exists', !!document.getElementById('btnSuggest'));
+  ok('DOM: btnRunTests exists', !!document.getElementById('btnRunTests'));
+  ok('DOM: mentorLinkedIn input exists', !!document.getElementById('mentorLinkedIn'));
+  // NEW: Requests flow (unit)
+  const menteeEmail = 'u+'+Math.random().toString(36).slice(2)+'@ex.com';
+  registerUser('U', menteeEmail, 'Mentee', 'p'); loginUser(menteeEmail,'p');
+  createMentorshipRequest('aisha@mentors.org');
+  const hasPending = getRequests().some(r=> r.menteeEmail===menteeEmail && r.status==='pending');
+  ok('Request created (pending)', hasPending);
+  // Switch to mentor and accept
+  registerUser('Aisha','aisha@mentors.org','Mentor','p'); loginUser('aisha@mentors.org','p');
+  const req = getRequests().find(r=> r.menteeEmail===menteeEmail);
+  acceptRequest(req.id);
+  const paired = getPairs().some(p=> p.mentorEmail==='aisha@mentors.org' && p.menteeEmail===menteeEmail);
+  ok('Pair created on accept', paired);
+
+  const outEl = document.getElementById('testResults'); if(outEl) out.textContent = out.join('\n');
+}
+
+// Buttons (guarded)
+const btnSuggest = document.getElementById('btnSuggest');
+if(btnSuggest){ btnSuggest.onclick = ()=>{ const s=getSession(); if(!s||s.role!=='Mentee'){ alert('Login as Mentee to get suggestions.'); return; } const mentee = readMentee(); const matches = matchMentors(mentee); renderResults(matches); }; }
+const btnReset = document.getElementById('btnReset');
+if(btnReset){ btnReset.onclick = ()=>{ if(confirm('Reset page state? (Clears session, goals, requests, pairs)')){ localStorage.removeItem('session'); localStorage.removeItem('goals'); localStorage.removeItem('requests'); localStorage.removeItem('pairs'); document.location.reload(); } }; }
+const btnLoadCSV = document.getElementById('btnLoadCSV');
+if(btnLoadCSV){ btnLoadCSV.onclick = async ()=>{ const url = document.getElementById('csvUrl').value.trim(); if(!url){ alert('Paste a Google Sheets CSV link first.'); return; } localStorage.setItem('csvUrl', url); try{ const count=(await loadMentorsFromCSV(url)).length; alert('Loaded '+count+' mentors from Google Sheets.'); }catch(err){ console.error(err); alert('Could not load CSV: '+err.message+'\nEnsure the sheet is published to the web as CSV and publicly viewable.'); } }; }
+const btnRunTests = document.getElementById('btnRunTests');
+if(btnRunTests){ btnRunTests.onclick = runTests; }
+
+// ======= QA Checklist Dashboard =======
+function setStatus(id, ok, msg){
+  const li = document.getElementById(id);
+  const small = document.getElementById(id+'-msg');
+  if(ok){ li.innerHTML = li.innerHTML.replace('🔲','✅'); li.style.color = '#9ff0b9'; }
+  else { li.innerHTML = li.innerHTML.replace('✅','🔲'); li.style.color = ''; }
+  if(small) small.textContent = msg || '';
+}
+
+async function runChecklist(){}
+function exportChecklist(){}
+
+const btnRunChecklist = document.getElementById('btnRunChecklist');
+if(btnRunChecklist){ btnRunChecklist.onclick = runChecklist; }
+const btnExportChecklist = document.getElementById('btnExportChecklist');
+if(btnExportChecklist){ btnExportChecklist.onclick = exportChecklist; }
+
+}); // end DOMContentLoaded
+</script>
+
+  <!-- Supabase client + config -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    window.SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+    window.SUPABASE_ANON_KEY = "YOUR-ANON-KEY";
+  </script>
+  <script src="./supabase-bridge.js"></script>
+  <script>window.supa && window.supa.init && window.supa.init();</script>
+
+</body>
+</html>
